@@ -6,6 +6,8 @@ router.post("/", lessonController.createLesson); //
 
 router.get("/", lessonController.getAllLessons); //
 
+router.post("/:lessonId/sessions", lessonController.addSessionsToLesson);
+
 router.get("/:id", lessonController.getLessonById); //
 
 router.put("/:id", lessonController.updateLesson); //

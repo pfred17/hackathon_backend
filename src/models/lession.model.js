@@ -27,6 +27,7 @@ const LessonSchema = new mongoose.Schema(
         dueDate: Date,
       },
     ],
+    sessions: [{ type: String, ref: "Session" }], // Liên kết tới session
     status: { type: Boolean, default: true },
   },
   { timestamps: true }
