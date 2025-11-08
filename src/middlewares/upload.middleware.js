@@ -1,9 +1,8 @@
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 
 const UPLOADS_DIR_FINAL = path.join(__dirname, "..", "..", "src/uploads");
-
-const fs = require("fs");
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -20,25 +19,37 @@ const storage = multer.diskStorage({
   },
 });
 
-// Middleware Multer để xử lý upload
 const upload = multer({
   storage: storage,
-  // Thêm giới hạn và bộ lọc nếu cần
-  limits: { fileSize: 1024 * 1024 * 5 }, // Ví dụ: giới hạn 5MB
+  limits: { fileSize: 1024 * 1024 * 20 }, // giới hạn 20MB
   fileFilter: (req, file, cb) => {
-    const filetypes = /jpeg|jpg|png|gif/;
-    const mimetype = filetypes.test(file.mimetype);
-    const extname = filetypes.test(
+    // ✅ Danh sách mime types hợp lệ
+    const allowedMimes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/gif",
+      "audio/mpeg", // .mp3
+      "audio/mp3",
+      "audio/x-m4a", // .m4a (nhiều trình duyệt dùng)
+      "audio/mp4", // .m4a (một số khác)
+      "audio/wav", // .wav
+      "audio/x-wav",
+    ];
+
+    // ✅ Cho phép các đuôi file hợp lệ
+    const extname = /jpeg|jpg|png|gif|mp3|m4a|wav/.test(
       path.extname(file.originalname).toLowerCase()
     );
+
+    const mimetype = allowedMimes.includes(file.mimetype);
 
     if (mimetype && extname) {
       cb(null, true);
     } else {
-      cb(new Error("Only image files are allowed!"));
+      cb(new Error("Only image and audio files (mp3, m4a, wav) are allowed!"));
     }
   },
 });
 
-// Export middleware này để sử dụng trong router
 module.exports = upload;
