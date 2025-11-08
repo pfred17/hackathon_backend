@@ -35,10 +35,11 @@ const upload = multer({
       "audio/mp4", // .m4a (một số khác)
       "audio/wav", // .wav
       "audio/x-wav",
+      "audio/webm",
     ];
 
     // ✅ Cho phép các đuôi file hợp lệ
-    const extname = /jpeg|jpg|png|gif|mp3|m4a|wav/.test(
+    const extname = /jpeg|jpg|png|gif|mp3|m4a|wav|webm/.test(
       path.extname(file.originalname).toLowerCase()
     );
 

@@ -3,6 +3,7 @@ const authRoute = require("./auth.route");
 const chatbotRoute = require("./chatbot.route");
 const sttRoute = require("./stt.route");
 const ttsRoute = require("./tts.route");
+const subjectRoute = require("./subject.route");
 
 const route = (app) => {
   app.use("/api/admin", adminRoute);
@@ -10,6 +11,7 @@ const route = (app) => {
   app.use("/api/chatbot/", chatbotRoute);
   app.use("/api/stt/", sttRoute);
   app.use("/api/tts/", ttsRoute);
+  app.use("/api/subject/", subjectRoute);
 };
 
 module.exports = route;

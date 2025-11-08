@@ -13,13 +13,10 @@ const UserSchema = new mongoose.Schema(
     avatar: { type: String, default: "" },
     role: {
       type: String,
-      enum: ["seeker", "employer", "admin"],
+      enum: ["teacher", "student", "admin"],
       default: "seeker",
     },
     googleId: String,
-    resumeUrl: String, // Link CV người tìm việc (nếu có)
-    savedJobs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Job" }],
-    company: { type: mongoose.Schema.Types.ObjectId, ref: "Company" }, // nếu là employer
     status: { type: Boolean, default: true },
   },
   { timestamps: true }
