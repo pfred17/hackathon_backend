@@ -1,15 +1,14 @@
 const express = require("express");
 const router = express.Router();
-const { convertAudioToText } = require("../controllers/stt.controller");
+const { convertTextToAudio } = require("../controllers/tts.controller");
 const { protectRoute } = require("../middlewares/auth.middleware");
 
 const upload = require("../middlewares/upload.middleware");
 
 router.post(
-  "/whisper",
+  "/",
   // protectRoute,
-  upload.single("audio"),
-  convertAudioToText
+  convertTextToAudio
 );
 
 module.exports = router;
