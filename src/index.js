@@ -1,6 +1,6 @@
 require("dotenv").config();
-// Import các thư viện cần thiết
 const express = require("express");
+const http = require("http");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const session = require("express-session");
@@ -9,14 +9,14 @@ const passport = require("./config/passport");
 const route = require("./routes/index");
 const connectDB = require("./config/db");
 const errorHandler = require("./middlewares/error.middleware");
-// Load biến môi trường từ file .env
+const initializeSocket = require("./config/socket");
 
-// Khởi tạo ứng dụng Express
 const app = express();
+const server = http.createServer(app);
 
 // Middleware
 app.use(cors());
-app.use(express.json()); // để parse body JSON
+app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(
@@ -27,15 +27,18 @@ app.use(
     cookie: { secure: true },
   })
 );
-/* OAuth Middleware */
+
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Cấu hình route
+// Routes
 route(app);
 
 // Error handler
 app.use(errorHandler);
+
+// Initialize Socket.IO
+const io = initializeSocket(server);
 
 // Cấu hình cổng
 const PORT = process.env.PORT || 5001;
@@ -44,6 +47,7 @@ const PORT = process.env.PORT || 5001;
 connectDB();
 
 // Khởi chạy server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server đang chạy tại http://localhost:${PORT}`);
+  console.log(`Socket.IO server đã sẵn sàng`);
 });
