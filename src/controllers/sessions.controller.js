@@ -1,5 +1,6 @@
 const Session = require("../models/sessions.model");
 const Subject = require("../models/subject.model");
+const SessionMessage = require("../models/SessionMessage.model");
 
 exports.createSession = async (req, res, next) => {
   try {
@@ -28,7 +29,32 @@ exports.createSession = async (req, res, next) => {
 exports.getAllSessions = async (req, res, next) => {
   try {
     const sessions = await Session.find().populate("subject", "name");
-    res.status(200).json(sessions);
+    
+    // Lấy messages cho từng session
+    const sessionsWithMessages = await Promise.all(
+      sessions.map(async (session) => {
+        const messages = await SessionMessage.find({
+          sessionId: session._id,
+          isDeleted: false
+        })
+          .populate("user", "name email avatar")
+          .populate({
+            path: "replyTo",
+            populate: {
+              path: "user",
+              select: "name email avatar"
+            }
+          })
+          .sort({ createdAt: 1 })
+          .limit(50); // Giới hạn 50 messages mới nhất
+
+        const sessionObj = session.toObject();
+        sessionObj.sessionsMessages = messages;
+        return sessionObj;
+      })
+    );
+
+    res.status(200).json(sessionsWithMessages);
   } catch (error) {
     next(error);
   }
@@ -39,7 +65,27 @@ exports.getSessionById = async (req, res, next) => {
     const session = await Session.findById(req.params.id).populate("subject", "name");
     if (!session)
       return res.status(404).json({ message: "Không tìm thấy session" });
-    res.status(200).json(session);
+    
+    // Lấy messages của session này
+    const messages = await SessionMessage.find({
+      sessionId: session._id,
+      isDeleted: false
+    })
+      .populate("user", "name email avatar")
+      .populate({
+        path: "replyTo",
+        populate: {
+          path: "user",
+          select: "name email avatar"
+        }
+      })
+      .sort({ createdAt: 1 })
+      .limit(100); // Giới hạn 100 messages
+
+    const sessionObj = session.toObject();
+    sessionObj.sessionsMessages = messages;
+    
+    res.status(200).json(sessionObj);
   } catch (error) {
     next(error);
   }
