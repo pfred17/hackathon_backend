@@ -2,11 +2,12 @@ const Subject = require("../models/subject.model");
 
 exports.createSubject = async (req, res, next) => {
   try {
-    const { name, description, lessons, teacher, status } = req.body;
+    const { name, description,image, lessons, teacher, status } = req.body;
 
     const newSubject = new Subject({
       name,
       description,
+      image,
       lessons,
       teacher,
       status,
@@ -24,9 +25,7 @@ exports.createSubject = async (req, res, next) => {
 
 exports.getAllSubjects = async (req, res, next) => {
   try {
-    const subjects = await Subject.find()
-      .populate("lessons", "title")
-      .populate("teacher", "name email");
+    const subjects = await Subject.find()      
     res.status(200).json(subjects);
   } catch (error) {
     next(error);
