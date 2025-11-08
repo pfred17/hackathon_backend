@@ -83,7 +83,7 @@ const initializeSocket = (server) => {
           return socket.emit("error", { message: "Not in this session" });
         }
 
-        const SessionMessage = require("../../models/sessionMessage.model");
+        const SessionMessage = require("../../models/SessionMessage.model");
         const newMessage = new SessionMessage({
           sessionId,
           user: socket.userId,
@@ -94,11 +94,20 @@ const initializeSocket = (server) => {
 
         await newMessage.save();
 
-        // Populate user info
+        // Populate user info and replyTo
         await newMessage.populate("user", "name email avatar");
+        if (replyTo) {
+          await newMessage.populate({
+            path: "replyTo",
+            populate: {
+              path: "user",
+              select: "name email avatar"
+            }
+          });
+        }
 
         // Broadcast to all users in the session room
-        io.to(`session:${sessionId}`).emit("new_message", {
+        const messageData = {
           _id: newMessage._id,
           sessionId: newMessage.sessionId,
           user: {
@@ -109,10 +118,23 @@ const initializeSocket = (server) => {
           },
           message: newMessage.message,
           messageType: newMessage.messageType,
-          replyTo: newMessage.replyTo,
+          replyTo: newMessage.replyTo ? {
+            _id: newMessage.replyTo._id,
+            message: newMessage.replyTo.message,
+            user: newMessage.replyTo.user ? {
+              _id: newMessage.replyTo.user._id,
+              name: newMessage.replyTo.user.name,
+              email: newMessage.replyTo.user.email,
+              avatar: newMessage.replyTo.user.avatar
+            } : null
+          } : null,
+          isEdited: newMessage.isEdited,
+          isDeleted: newMessage.isDeleted,
           createdAt: newMessage.createdAt,
           updatedAt: newMessage.updatedAt
-        });
+        };
+
+        io.to(`session:${sessionId}`).emit("new_message", messageData);
       } catch (error) {
         socket.emit("error", { message: "Failed to send message" });
       }
@@ -122,7 +144,7 @@ const initializeSocket = (server) => {
     socket.on("edit_message", async (data) => {
       try {
         const { messageId, newMessage, sessionId } = data;
-        const SessionMessage = require("../../models/sessionMessage.model");
+        const SessionMessage = require("../../models/SessionMessage.model");
         
         const message = await SessionMessage.findOne({
           _id: messageId,
@@ -152,7 +174,7 @@ const initializeSocket = (server) => {
     socket.on("delete_message", async (data) => {
       try {
         const { messageId, sessionId } = data;
-        const SessionMessage = require("../../models/sessionMessage.model");
+        const SessionMessage = require("../../models/SessionMessage.model");
         
         const message = await SessionMessage.findOne({
           _id: messageId,

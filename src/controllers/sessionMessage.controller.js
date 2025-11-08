@@ -1,4 +1,39 @@
-const SessionMessage = require("../models/sessionMessage.model");
+const SessionMessage = require("../models/SessionMessage.model");
+
+exports.createMessage = async (req, res, next) => {
+  try {
+    const { sessionId, message, messageType = "text", replyTo } = req.body;
+    const userId = req.user._id;
+
+    if (!sessionId || !message) {
+      return res.status(400).json({ 
+        message: "sessionId và message là bắt buộc" 
+      });
+    }
+
+    const newMessage = new SessionMessage({
+      sessionId,
+      user: userId,
+      message,
+      messageType,
+      replyTo: replyTo || null,
+    });
+
+    await newMessage.save();
+    await newMessage.populate("user", "name email avatar");
+    
+    if (replyTo) {
+      await newMessage.populate("replyTo");
+    }
+
+    res.status(201).json({
+      message: "Tạo tin nhắn thành công",
+      data: newMessage,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 exports.getSessionMessages = async (req, res, next) => {
   try {
@@ -10,7 +45,13 @@ exports.getSessionMessages = async (req, res, next) => {
       isDeleted: false
     })
       .populate("user", "name email avatar")
-      .populate("replyTo")
+      .populate({
+        path: "replyTo",
+        populate: {
+          path: "user",
+          select: "name email avatar"
+        }
+      })
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const SessionMessageSchema = new mongoose.Schema(
+const sessionMessageSchema = new mongoose.Schema(
   {
     sessionId: { 
       type: String, 
@@ -38,5 +38,5 @@ const SessionMessageSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const SessionMessage = mongoose.model("SessionMessage", SessionMessageSchema);
+const SessionMessage = mongoose.model("SessionMessage", sessionMessageSchema);
 module.exports = SessionMessage;

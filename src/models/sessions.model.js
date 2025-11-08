@@ -17,6 +17,7 @@ const SessionSchema = new mongoose.Schema(
       ref: "Subject",
       required: true,
     }, 
+sessionsMessages: [{ type: mongoose.Schema.Types.ObjectId, ref: "SessionMessage" }],
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
   },
