@@ -36,30 +36,19 @@ exports.createMessage = async (req, res, next) => {
 };
 
 exports.getSessionMessages = async (req, res, next) => {
+    console.log(req.params);
   try {
-    const { sessionId } = req.params;
+    const { id } = req.params;
     const { page = 1, limit = 50 } = req.query;
 
-    const messages = await SessionMessage.find({
-      sessionId,
-      isDeleted: false
-    })
+    const messages = await SessionMessage.find({ _id: id, isDeleted: false })
       .populate("user", "name email avatar")
-      .populate({
-        path: "replyTo",
-        populate: {
-          path: "user",
-          select: "name email avatar"
-        }
-      })
+      .populate({ path: "replyTo", populate: { path: "user", select: "name email avatar" } })
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
 
-    const total = await SessionMessage.countDocuments({
-      sessionId,
-      isDeleted: false
-    });
+    const total = await SessionMessage.countDocuments({ sessionId: id, isDeleted: false });
 
     res.status(200).json({
       messages: messages.reverse(), // Reverse để hiển thị từ cũ đến mới

@@ -14,7 +14,7 @@ const UserSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: ["teacher", "student", "admin"],
-      default: "seeker",
+
     },
     googleId: String,
     status: { type: Boolean, default: true },

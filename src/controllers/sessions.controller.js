@@ -28,7 +28,7 @@ exports.createSession = async (req, res, next) => {
 
 exports.getAllSessions = async (req, res, next) => {
   try {
-    const sessions = await Session.find().populate("subject", "name");
+    const sessions = await Session.find();
     
     // Lấy messages cho từng session
     const sessionsWithMessages = await Promise.all(
