@@ -1,6 +1,8 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const User = require("../../models/user.model");
+const SessionMessage = require("../../models/SessionMessage.model");
+const Session = require("../../models/sessions.model");
 
 const initializeSocket = (server) => {
   const io = new Server(server, {
@@ -11,7 +13,7 @@ const initializeSocket = (server) => {
     }
   });
 
-  // Middleware xác thực socket
+  // Middleware xác thực socket 
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token || socket.handshake.headers.token;
@@ -41,6 +43,21 @@ const initializeSocket = (server) => {
     // Join session room
     socket.on("join_session", async (sessionId) => {
       try {
+        if (!sessionId) {
+          return socket.emit("error", { message: "Session ID is required" });
+        }
+
+        // Validate session exists
+        const session = await Session.findById(sessionId);
+        if (!session) {
+          // return socket.emit("error", { message: "Session not found" });
+        }
+
+        // Leave previous session if any
+        if (socket.currentSession) {
+          socket.leave(`session:${socket.currentSession}`);
+        }
+
         socket.join(`session:${sessionId}`);
         socket.currentSession = sessionId;
         
@@ -51,27 +68,42 @@ const initializeSocket = (server) => {
           timestamp: new Date()
         });
 
-        // Gửi danh sách users đang online trong room
+        // Gửi danh sách users đang online trong room (sau khi đã join)
         const socketsInRoom = await io.in(`session:${sessionId}`).fetchSockets();
         const onlineUsers = socketsInRoom.map(s => ({
           userId: s.userId,
-          userName: s.user.name
+          userName: s.user?.name || "Unknown"
         }));
 
         socket.emit("online_users", onlineUsers);
       } catch (error) {
-        socket.emit("error", { message: "Failed to join session" });
+        console.error("Error joining session:", error);
+        socket.emit("error", { message: "Failed to join session", error: error.message });
       }
     });
 
     // Leave session room
     socket.on("leave_session", (sessionId) => {
-      socket.leave(`session:${sessionId}`);
-      socket.to(`session:${sessionId}`).emit("user_left", {
-        userId: socket.userId,
-        userName: socket.user.name,
-        timestamp: new Date()
-      });
+      try {
+        if (!sessionId) {
+          return socket.emit("error", { message: "Session ID is required" });
+        }
+
+        socket.leave(`session:${sessionId}`);
+        
+        if (socket.currentSession === sessionId) {
+          socket.currentSession = null;
+        }
+
+        socket.to(`session:${sessionId}`).emit("user_left", {
+          userId: socket.userId,
+          userName: socket.user?.name || "Unknown",
+          timestamp: new Date()
+        });
+      } catch (error) {
+        console.error("Error leaving session:", error);
+        socket.emit("error", { message: "Failed to leave session" });
+      }
     });
 
     // Send message
@@ -79,17 +111,33 @@ const initializeSocket = (server) => {
       try {
         const { sessionId, message, messageType = "text", replyTo } = data;
 
+        // Validation
+        if (!sessionId || !message) {
+          return socket.emit("error", { message: "Session ID and message are required" });
+        }
+
         if (!socket.currentSession || socket.currentSession !== sessionId) {
           return socket.emit("error", { message: "Not in this session" });
         }
 
-        const SessionMessage = require("../../models/SessionMessage.model");
+        if (!["text", "image", "file"].includes(messageType)) {
+          return socket.emit("error", { message: "Invalid message type" });
+        }
+
+        // Validate replyTo exists if provided
+        if (replyTo) {
+          const replyMessage = await SessionMessage.findById(replyTo);
+          if (!replyMessage || replyMessage.sessionId !== sessionId) {
+            return socket.emit("error", { message: "Reply message not found" });
+          }
+        }
+
         const newMessage = new SessionMessage({
           sessionId,
           user: socket.userId,
           message,
           messageType,
-          replyTo
+          replyTo: replyTo || null
         });
 
         await newMessage.save();
@@ -134,9 +182,11 @@ const initializeSocket = (server) => {
           updatedAt: newMessage.updatedAt
         };
 
-        io.to(`session:${sessionId}`).emit("new_message", messageData);
+        socket.emit("new_message", messageData);
+        socket.to(`session:${sessionId}`).emit("new_message", messageData);
       } catch (error) {
-        socket.emit("error", { message: "Failed to send message" });
+        console.error("Error sending message:", error);
+        socket.emit("error", { message: "Failed to send message", error: error.message });
       }
     });
 
@@ -144,16 +194,25 @@ const initializeSocket = (server) => {
     socket.on("edit_message", async (data) => {
       try {
         const { messageId, newMessage, sessionId } = data;
-        const SessionMessage = require("../../models/SessionMessage.model");
+
+        // Validation
+        if (!messageId || !newMessage || !sessionId) {
+          return socket.emit("error", { message: "Message ID, new message, and session ID are required" });
+        }
+
+        if (!socket.currentSession || socket.currentSession !== sessionId) {
+          return socket.emit("error", { message: "Not in this session" });
+        }
         
         const message = await SessionMessage.findOne({
           _id: messageId,
           user: socket.userId,
-          sessionId
+          sessionId,
+          isDeleted: false
         });
 
         if (!message) {
-          return socket.emit("error", { message: "Message not found" });
+          return socket.emit("error", { message: "Message not found or you don't have permission to edit" });
         }
 
         message.message = newMessage;
@@ -166,7 +225,8 @@ const initializeSocket = (server) => {
           updatedAt: message.updatedAt
         });
       } catch (error) {
-        socket.emit("error", { message: "Failed to edit message" });
+        console.error("Error editing message:", error);
+        socket.emit("error", { message: "Failed to edit message", error: error.message });
       }
     });
 
@@ -174,16 +234,25 @@ const initializeSocket = (server) => {
     socket.on("delete_message", async (data) => {
       try {
         const { messageId, sessionId } = data;
-        const SessionMessage = require("../../models/SessionMessage.model");
+
+        // Validation
+        if (!messageId || !sessionId) {
+          return socket.emit("error", { message: "Message ID and session ID are required" });
+        }
+
+        if (!socket.currentSession || socket.currentSession !== sessionId) {
+          return socket.emit("error", { message: "Not in this session" });
+        }
         
         const message = await SessionMessage.findOne({
           _id: messageId,
           user: socket.userId,
-          sessionId
+          sessionId,
+          isDeleted: false
         });
 
         if (!message) {
-          return socket.emit("error", { message: "Message not found" });
+          return socket.emit("error", { message: "Message not found or you don't have permission to delete" });
         }
 
         message.isDeleted = true;
@@ -193,29 +262,48 @@ const initializeSocket = (server) => {
           messageId
         });
       } catch (error) {
-        socket.emit("error", { message: "Failed to delete message" });
+        console.error("Error deleting message:", error);
+        socket.emit("error", { message: "Failed to delete message", error: error.message });
       }
     });
 
     // Typing indicator
     socket.on("typing", (data) => {
-      const { sessionId, isTyping } = data;
-      socket.to(`session:${sessionId}`).emit("user_typing", {
-        userId: socket.userId,
-        userName: socket.user.name,
-        isTyping
-      });
+      try {
+        const { sessionId, isTyping } = data;
+
+        if (!sessionId) {
+          return socket.emit("error", { message: "Session ID is required" });
+        }
+
+        if (!socket.currentSession || socket.currentSession !== sessionId) {
+          return socket.emit("error", { message: "Not in this session" });
+        }
+
+        socket.to(`session:${sessionId}`).emit("user_typing", {
+          userId: socket.userId,
+          userName: socket.user?.name || "Unknown",
+          isTyping: Boolean(isTyping)
+        });
+      } catch (error) {
+        console.error("Error handling typing indicator:", error);
+        socket.emit("error", { message: "Failed to send typing indicator" });
+      }
     });
 
     // Disconnect
     socket.on("disconnect", () => {
       console.log(`User disconnected: ${socket.userId}`);
-      if (socket.currentSession) {
-        socket.to(`session:${socket.currentSession}`).emit("user_left", {
-          userId: socket.userId,
-          userName: socket.user.name,
-          timestamp: new Date()
-        });
+      try {
+        if (socket.currentSession) {
+          socket.to(`session:${socket.currentSession}`).emit("user_left", {
+            userId: socket.userId,
+            userName: socket.user?.name || "Unknown",
+            timestamp: new Date()
+          });
+        }
+      } catch (error) {
+        console.error("Error handling disconnect:", error);
       }
     });
   });

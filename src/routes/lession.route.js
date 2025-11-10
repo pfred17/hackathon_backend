@@ -7,6 +7,8 @@ router.post("/", lessonController.createLesson); //
 router.get("/", lessonController.getAllLessons); //
 
 router.post("/:lessonId/sessions", lessonController.addSessionsToLesson);
+// Thêm tài nguyên (ví dụ video) vào một bài học
+router.post("/:lessonId/resources", lessonController.addResourcesToLesson);
 
 router.get("/:id", lessonController.getLessonById); //
 

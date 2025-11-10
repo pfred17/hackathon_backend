@@ -1,6 +1,7 @@
 const Session = require("../models/sessions.model");
 const Subject = require("../models/subject.model");
 const SessionMessage = require("../models/SessionMessage.model");
+const { spawn } = require("child_process");
 
 exports.createSession = async (req, res, next) => {
   try {
@@ -194,3 +195,63 @@ exports.bulkCreateSessions = async (req, res, next) => {
   }
 };
 
+// Đặt video URL và ngôn ngữ cho session
+exports.setSessionVideo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { contentUrl, language } = req.body;
+    if (!contentUrl) {
+      return res.status(400).json({ message: "Vui lòng cung cấp contentUrl" });
+    }
+    const update = { type: "video", contentUrl };
+    if (language) update.language = language;
+    const updated = await Session.findByIdAndUpdate(id, update, { new: true }).populate("subject", "name");
+    if (!updated) return res.status(404).json({ message: "Không tìm thấy session" });
+    res.status(200).json({ message: "Cập nhật video cho session", data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Tạo phụ đề (SRT) từ audio upload và gắn vào session
+exports.generateSubtitlesFromAudio = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const session = await Session.findById(id);
+    if (!session) return res.status(404).json({ message: "Không tìm thấy session" });
+    if (!req.file) return res.status(400).json({ message: "Vui lòng upload file audio" });
+
+    // Ngôn ngữ ưu tiên: từ body hoặc từ session
+    const lang = (req.body.language || session.language || "vi").toLowerCase();
+
+    const pythonProcess = spawn("python", [
+      "../hackathon_backend/src/AI/app.py",
+      req.file.path,
+      lang,
+    ]);
+
+    let output = "";
+    let errout = "";
+    pythonProcess.stdout.on("data", (data) => { output += data.toString(); });
+    pythonProcess.stderr.on("data", (data) => { errout += data.toString(); });
+    pythonProcess.on("close", async (code) => {
+      try {
+        const result = JSON.parse(output);
+        if (!result.success) {
+          return res.status(500).json({ message: "Python error", error: result.error, stderr: errout });
+        }
+        const { text_input, srt } = result;
+        const updated = await Session.findByIdAndUpdate(
+          id,
+          { textContent: text_input || session.textContent, subtitles: srt || session.subtitles },
+          { new: true }
+        ).populate("subject", "name");
+        return res.status(200).json({ message: "Đã tạo phụ đề và gắn vào session", data: updated });
+      } catch (e) {
+        return res.status(500).json({ message: "Invalid JSON from Python", error: e.message, stderr: errout });
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};

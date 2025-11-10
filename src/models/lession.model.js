@@ -17,6 +17,14 @@ const LessonSchema = new mongoose.Schema(
           default: "text",
         },
         url: String,
+        // Ngôn ngữ nội dung tài nguyên (ví dụ phụ đề/giọng nói)
+        language: {
+          type: String,
+          enum: ["vi", "en"],
+          required: false,
+        },
+        // Tiêu đề hiển thị (không bắt buộc)
+        title: { type: String, required: false },
       },
     ],
     students: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Học sinh tham gia

@@ -10,8 +10,12 @@ const SessionSchema = new mongoose.Schema(
       enum: ["video", "audio", "text", "pdf"],
       default: "text",
     },
+    // Ngôn ngữ nội dung (vi/en) để phục vụ STT/phụ đề
+    language: { type: String, enum: ["vi", "en"], default: "vi" },
     contentUrl: { type: String, default: "" },
     textContent: { type: String, default: "" },
+    // Phụ đề dạng SRT lưu trực tiếp
+    subtitles: { type: String, default: "" },
     subject: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Subject",

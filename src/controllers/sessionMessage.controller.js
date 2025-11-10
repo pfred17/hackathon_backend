@@ -41,7 +41,7 @@ exports.getSessionMessages = async (req, res, next) => {
     const { id } = req.params;
     const { page = 1, limit = 50 } = req.query;
 
-    const messages = await SessionMessage.find({ _id: id, isDeleted: false })
+    const messages = await SessionMessage.find({ sessionId: id, isDeleted: false })
       .populate("user", "name email avatar")
       .populate({ path: "replyTo", populate: { path: "user", select: "name email avatar" } })
       .sort({ createdAt: -1 })

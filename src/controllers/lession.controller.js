@@ -1,5 +1,59 @@
 const Lesson = require("../models/lession.model");
 const Session = require("../models/sessions.model");
+/**
+ * Append resources (e.g., videos) to a lesson without overwriting existing ones.
+ * Body: { resources: [{ type: 'video', url, language?: 'vi'|'en', title?: string }, ...] }
+ */
+exports.addResourcesToLesson = async (req, res, next) => {
+  try {
+    const { lessonId } = req.params;
+    const { resources } = req.body;
+
+    if (!Array.isArray(resources) || resources.length === 0) {
+      return res.status(400).json({ message: "Vui lòng cung cấp mảng resources hợp lệ" });
+    }
+
+    const lesson = await Lesson.findById(lessonId);
+    if (!lesson) {
+      return res.status(404).json({ message: "Không tìm thấy bài học" });
+    }
+
+    const current = (lesson.resources || []).map(r => `${r.type}|${r.url}|${r.language || ''}`);
+    const toAdd = [];
+    for (const r of resources) {
+      if (!r || !r.type || !r.url) continue;
+      const key = `${r.type}|${r.url}|${r.language || ''}`;
+      if (!current.includes(key)) {
+        toAdd.push({
+          type: r.type,
+          url: r.url,
+          language: r.language,
+          title: r.title,
+        });
+      }
+    }
+
+    if (toAdd.length === 0) {
+      return res.status(200).json({ message: "Không có tài nguyên mới để thêm", added: 0, data: lesson });
+    }
+
+    const updated = await Lesson.findByIdAndUpdate(
+      lessonId,
+      { $addToSet: { resources: { $each: toAdd } } },
+      { new: true }
+    )
+      .populate("subject", "name")
+      .populate("students", "name email")
+      .populate({
+        path: "sessions",
+        populate: { path: "subject", select: "name" }
+      });
+
+    return res.status(200).json({ message: `Đã thêm ${toAdd.length} tài nguyên`, added: toAdd.length, data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
 exports.createLesson = async (req, res, next) => {
   try {
     const {
